@@ -19,11 +19,11 @@ jobs:
 
       - name: Set up Docker Compose
         run: |
-          docker-compose --version
+          docker compose version
 
       - name: Build and start services
         run: |
-          docker compose -f docker-compose.yaml up -d --build
+          docker compose -f docker-compose.yaml up -d build
 
       - name: Wait for DB healthcheck
         run: |
@@ -35,7 +35,7 @@ jobs:
 
       - name: Stop and clean containers
         run: |
-          docker-compose down -v
+          docker compose down -v
 
   docker-build-and-push:
     needs: test

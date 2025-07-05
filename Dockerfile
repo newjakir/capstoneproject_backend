@@ -46,11 +46,17 @@ COPY --from=builder /app/venv1 /app/venv1
 # Copy application code
 COPY . /app/
 
-# Create non-root user for security
+# Copy script and set permissions while still root
+COPY db.sqlite3 /app/db.sqlite3
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# THEN switch to non-root user
 RUN useradd -m -u 1000 appuser && \
     chown -R appuser:appuser /app
 USER appuser
 
 EXPOSE 8000
 
-CMD ["/bin/bash", "-c", "source venv1/bin/activate && python manage.py migrate && python manage.py createsuperuser --noinput && python manage.py runserver 0.0.0.0:8000"]
+#CMD ["/bin/bash", "-c", "source venv1/bin/activate && python manage.py migrate && python manage.py createsuperuser --noinput && python manage.py runserver 0.0.0.0:8000"]
+ENTRYPOINT ["/app/entrypoint.sh"]

@@ -29,6 +29,15 @@ jobs:
         run: docker compose version
 
       - name: Build and start services
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_PUBLIC_KEY: ${{ secrets.STRIPE_PUBLIC_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          SITE_URL: ${{ secrets.SITE_URL }}
+          FRONTEND_SITE_URL: ${{ secrets.FRONTEND_SITE_URL }}
+          DJANGO_SUPERUSER_USERNAME: ${{ secrets.DJANGO_SUPERUSER_USERNAME }}
+          DJANGO_SUPERUSER_EMAIL: ${{ secrets.DJANGO_SUPERUSER_EMAIL }}
+          DJANGO_SUPERUSER_PASSWORD: ${{ secrets.DJANGO_SUPERUSER_PASSWORD }}
         run: docker compose -f docker-compose.yml up -d --build
 
       - name: Wait for DB to be healthy

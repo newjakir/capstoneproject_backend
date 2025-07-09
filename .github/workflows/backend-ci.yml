@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 env:
-  DOCKER_IMAGE: yourdockerhubusername/3-tire-back
+  DOCKER_IMAGE: newjakir/3-tire-back
 
 jobs:
   test:

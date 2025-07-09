@@ -31,7 +31,7 @@ jobs:
 
       - name: Run tests inside web container
         run: |
-          docker exec 3-tire-back python manage.py test
+          docker exec 3-tire-back /app/venv1/bin/python manage.py test
 
       - name: Stop and clean containers
         run: |

@@ -1,87 +1,151 @@
-name: Django CI/CD
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jakir007-capsp
 
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+---
+# Persistent Volume Claim for PostgreSQL
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: jakir007-capsp
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
 
-env:
-  DOCKER_IMAGE: newjakir/3-tire-back
+---
+# PostgreSQL Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: jakir007-capsp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: capsp-env-secret
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: capsp-env-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: capsp-env-secret
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: postgres-pvc
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
+---
+# PostgreSQL Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: jakir007-capsp
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+  selector:
+    app: postgres
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+---
+# Backend Application Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: capsp-backend
+  namespace: jakir007-capsp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: capsp-backend
+  template:
+    metadata:
+      labels:
+        app: capsp-backend
+    spec:
+      containers:
+        - name: capsp-backend
+          image: newjakir/3-tire-back:latest
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: capsp-env-secret
+          readinessProbe:
+            httpGet:
+              path: /health/  # ✅ Make sure this is publicly accessible without auth
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
 
-      - name: Enable swap to prevent OOM (optional)
-        run: |
-          sudo fallocate -l 2G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
-          free -h
-
-      - name: Verify Docker Compose available
-        run: docker compose version
-
-      - name: Build and start services
-        env:
-          POSTGRES_DB: ${{ vars.POSTGRES_DB }}
-          POSTGRES_USER: ${{ vars.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
-          STRIPE_PUBLIC_KEY: ${{ secrets.STRIPE_PUBLIC_KEY }}
-          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
-          SITE_URL: ${{ secrets.SITE_URL }}
-          FRONTEND_SITE_URL: ${{ secrets.FRONTEND_SITE_URL }}
-          DJANGO_SUPERUSER_USERNAME: ${{ secrets.DJANGO_SUPERUSER_USERNAME }}
-          DJANGO_SUPERUSER_EMAIL: ${{ secrets.DJANGO_SUPERUSER_EMAIL }}
-          DJANGO_SUPERUSER_PASSWORD: ${{ secrets.DJANGO_SUPERUSER_PASSWORD }}
-
-        run: docker compose -f docker-compose.yml up -d --build
-
-      - name: Wait for DB to be healthy
-        run: |
-          for i in {1..10}; do
-            STATUS=$(docker inspect --format='{{.State.Health.Status}}' postgres-db)
-            if [ "$STATUS" = "healthy" ]; then
-              echo "Postgres is healthy."
-              break
-            else
-              echo "Waiting for Postgres to be healthy..."
-              sleep 5
-            fi
-          done
-
-      - name: Run Django tests inside container
-        run: docker exec 3-tire-back /app/venv1/bin/python manage.py test
-
-      - name: Print logs if test fails
-        if: failure()
-        run: docker compose logs
-
-      - name: Stop and remove containers
-        run: docker compose down -v
-
-  docker-build-and-push:
-    needs: test
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ vars.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Build and push Docker image
-        run: |
-          docker build -t $DOCKER_IMAGE:latest .
-          docker push $DOCKER_IMAGE:latest
+---
+# Backend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: capsp-backend
+  namespace: jakir007-capsp
+spec:
+  type: LoadBalancer  # Use NodePort if LoadBalancer unsupported
+  ports:
+    - port: 80
+      targetPort: 8000
+  selector:
+    app: capsp-backend

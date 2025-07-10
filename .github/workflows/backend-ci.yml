@@ -30,6 +30,9 @@ jobs:
 
       - name: Build and start services
         env:
+          POSTGRES_DB: ${{ vars.POSTGRES_DB }}
+          POSTGRES_USER: ${{ vars.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_PUBLIC_KEY: ${{ secrets.STRIPE_PUBLIC_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
@@ -38,6 +41,7 @@ jobs:
           DJANGO_SUPERUSER_USERNAME: ${{ secrets.DJANGO_SUPERUSER_USERNAME }}
           DJANGO_SUPERUSER_EMAIL: ${{ secrets.DJANGO_SUPERUSER_EMAIL }}
           DJANGO_SUPERUSER_PASSWORD: ${{ secrets.DJANGO_SUPERUSER_PASSWORD }}
+
         run: docker compose -f docker-compose.yml up -d --build
 
       - name: Wait for DB to be healthy
@@ -79,5 +83,5 @@ jobs:
 
       - name: Build and push Docker image
         run: |
-          docker build -t newjakir/3-tire-back:latest .
-          docker push newjakir/3-tire-back:latest
+          docker build -t $DOCKER_IMAGE:latest .
+          docker push $DOCKER_IMAGE:latest
